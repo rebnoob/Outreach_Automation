@@ -32,6 +32,12 @@ The dashboard lets you:
 - Filter and inspect leads
 - Download `CSV`
 
+### If discover says `0 new`
+
+- It usually means those domains are already in your database.
+- The UI now shows `new`, `already in DB`, and `total hits` so you can tell the difference.
+- Use **Clear All Lead Data** (type `DELETE`) if you want to restart from scratch.
+
 ## CLI Quick Start
 
 ```bash
