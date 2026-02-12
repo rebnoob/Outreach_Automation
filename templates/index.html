@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="hero reveal">
+  <div>
+    <p class="overline">Manufacturing Lead Engine</p>
+    <h1>Robotics Outreach Console</h1>
+    <p class="subtitle">Run crawl pipelines, score leads, and queue outreach from one place.</p>
+  </div>
+  <div class="db-pill">DB: <code>{{ db_path }}</code></div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <section class="alerts reveal">
+      {% for category, message in messages %}
+        <div class="alert {{ category }}">{{ message }}</div>
+      {% endfor %}
+    </section>
+  {% endif %}
+{% endwith %}
+
+<section class="stats reveal">
+  <article class="stat-card">
+    <h2>{{ totals['companies'] }}</h2>
+    <p>Companies</p>
+  </article>
+  <article class="stat-card">
+    <h2>{{ totals['contacts'] }}</h2>
+    <p>Contacts</p>
+  </article>
+  <article class="stat-card">
+    <h2>{{ totals['pages'] }}</h2>
+    <p>Crawled Pages</p>
+  </article>
+  <article class="stat-card">
+    <h2>{{ totals['pending_actions'] }}</h2>
+    <p>Pending Actions</p>
+  </article>
+  <article class="stat-card">
+    <h2>{{ totals['sent_actions'] }}</h2>
+    <p>Sent Actions</p>
+  </article>
+</section>
+
+<section class="layout reveal">
+  <article class="panel panel-wide">
+    <div class="panel-head">
+      <h3>Run Full Pipeline</h3>
+      <p>Discover → Enrich → Score → Plan</p>
+    </div>
+    <form method="post" action="{{ url_for('run_action') }}" class="grid-form">
+      <input type="hidden" name="action" value="run_all">
+
+      <label>
+        <span>Queries (one per line)</span>
+        <textarea name="queries" rows="5" placeholder="CNC machine shop california&#10;precision machining ohio"></textarea>
+      </label>
+
+      <label>
+        <span>Or query file path</span>
+        <input type="text" name="queries_file" value="{{ db_path.rsplit('/', 2)[0] }}/queries_manufacturing.txt">
+      </label>
+
+      <label>
+        <span>Fallback states (comma-separated)</span>
+        <input type="text" name="states" value="california, texas, ohio, illinois">
+      </label>
+
+      <label>
+        <span>Segment</span>
+        <input type="text" name="segment" value="manufacturing">
+      </label>
+
+      <label>
+        <span>Max results per query</span>
+        <input type="number" name="max_results" value="20" min="1" max="100">
+      </label>
+
+      <label>
+        <span>Enrich limit</span>
+        <input type="number" name="enrich_limit" value="150" min="1" max="3000">
+      </label>
+
+      <label>
+        <span>Max pages per site</span>
+        <input type="number" name="max_pages" value="4" min="1" max="20">
+      </label>
+
+      <label>
+        <span>Plan limit</span>
+        <input type="number" name="plan_limit" value="100" min="1" max="3000">
+      </label>
+
+      <label>
+        <span>Plan start date</span>
+        <input type="date" name="start_date" value="{{ today }}">
+      </label>
+
+      <label class="full">
+        <span>Value proposition</span>
+        <input type="text" name="value_prop" value="{{ default_value_prop }}">
+      </label>
+
+      <button type="submit" class="btn primary">Run Pipeline</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <div class="panel-head">
+      <h3>One-Step Actions</h3>
+      <p>Use these when tuning stages individually.</p>
+    </div>
+
+    <div class="stack">
+      <form method="post" action="{{ url_for('run_action') }}" class="inline-form">
+        <input type="hidden" name="action" value="init">
+        <button type="submit" class="btn ghost">Init DB</button>
+      </form>
+
+      <form method="post" action="{{ url_for('run_action') }}" class="inline-form compact">
+        <input type="hidden" name="action" value="discover">
+        <textarea name="queries" rows="3" placeholder="Optional custom queries"></textarea>
+        <input type="text" name="states" value="california, texas, ohio" placeholder="States">
+        <input type="number" name="max_results" value="15" min="1" max="100" placeholder="Max results">
+        <button type="submit" class="btn ghost">Discover</button>
+      </form>
+
+      <form method="post" action="{{ url_for('run_action') }}" class="inline-form compact">
+        <input type="hidden" name="action" value="enrich">
+        <input type="number" name="limit" value="200" min="1" max="2000" placeholder="Limit">
+        <input type="number" name="max_pages" value="4" min="1" max="20" placeholder="Max pages">
+        <button type="submit" class="btn ghost">Enrich</button>
+      </form>
+
+      <form method="post" action="{{ url_for('run_action') }}" class="inline-form">
+        <input type="hidden" name="action" value="score">
+        <button type="submit" class="btn ghost">Score</button>
+      </form>
+
+      <form method="post" action="{{ url_for('run_action') }}" class="inline-form compact">
+        <input type="hidden" name="action" value="plan">
+        <input type="number" name="limit" value="100" min="1" max="2000" placeholder="Plan limit">
+        <input type="date" name="start_date" value="{{ today }}">
+        <button type="submit" class="btn ghost">Plan Outreach</button>
+      </form>
+
+      <form method="post" action="{{ url_for('run_action') }}" class="inline-form compact">
+        <input type="hidden" name="action" value="send">
+        <input type="date" name="action_date" value="{{ today }}">
+        <input type="number" name="limit" value="50" min="1" max="5000" placeholder="Send limit">
+        <label class="checkbox">
+          <input type="checkbox" name="live">
+          <span>Live send</span>
+        </label>
+        <button type="submit" class="btn ghost">Send</button>
+      </form>
+
+      <a href="{{ url_for('export_csv') }}" class="btn secondary">Download CSV</a>
+    </div>
+  </article>
+</section>
+
+<section class="panel reveal">
+  <div class="panel-head">
+    <h3>Lead Explorer</h3>
+    <p>Sort by score and filter down to your ICP.</p>
+  </div>
+
+  <form method="get" action="{{ url_for('index') }}" class="filter-row">
+    <input type="text" name="q" value="{{ search }}" placeholder="Search domain, name, notes">
+
+    <select name="status">
+      <option value="" {% if not status_filter %}selected{% endif %}>All statuses</option>
+      {% for row in status_rows %}
+        <option value="{{ row['status'] }}" {% if status_filter == row['status'] %}selected{% endif %}>{{ row['status'] }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="channel">
+      <option value="" {% if not channel_filter %}selected{% endif %}>All channels</option>
+      {% for row in channel_rows %}
+        <option value="{{ row['best_channel'] }}" {% if channel_filter == row['best_channel'] %}selected{% endif %}>{{ row['best_channel'] }}</option>
+      {% endfor %}
+    </select>
+
+    <input type="number" name="min_score" value="{{ min_score }}" min="0" max="100" step="1" placeholder="Min score">
+    <input type="number" name="limit" value="{{ limit }}" min="10" max="500" step="10" placeholder="Rows">
+
+    <button type="submit" class="btn primary">Apply</button>
+  </form>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Scores</th>
+          <th>Best Channel</th>
+          <th>Reachout</th>
+          <th>Status</th>
+          <th>Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lead in leads %}
+          <tr>
+            <td>
+              <div class="company">
+                <a href="https://{{ lead['domain'] }}" target="_blank" rel="noopener">{{ lead['name'] or lead['domain'] }}</a>
+                <small>{{ lead['domain'] }}</small>
+              </div>
+            </td>
+            <td>
+              <div class="scoreline">Fit {{ lead['fit_score'] }}</div>
+              <div class="scoreline">Contact {{ lead['contact_score'] }}</div>
+              <div class="scoreline highlight">Outreach {{ lead['outreach_score'] }}</div>
+            </td>
+            <td><span class="tag">{{ lead['best_channel'] or 'research' }}</span></td>
+            <td>
+              {% if lead['primary_email'] %}<div><a href="mailto:{{ lead['primary_email'] }}">{{ lead['primary_email'] }}</a></div>{% endif %}
+              {% if lead['phone'] %}<div><a href="tel:{{ lead['phone'] }}">{{ lead['phone'] }}</a></div>{% endif %}
+              {% if lead['contact_form_url'] %}<div><a href="{{ lead['contact_form_url'] }}" target="_blank" rel="noopener">Contact form</a></div>{% endif %}
+              {% if lead['linkedin_url'] %}<div><a href="{{ lead['linkedin_url'] }}" target="_blank" rel="noopener">LinkedIn</a></div>{% endif %}
+            </td>
+            <td><span class="tag muted">{{ lead['status'] }}</span></td>
+            <td>{{ lead['updated_at'][:10] if lead['updated_at'] else '-' }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="6">No leads match your filters yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel reveal">
+  <div class="panel-head">
+    <h3>Recent Outreach Queue</h3>
+    <p>Latest generated actions across all channels.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Step</th>
+          <th>Channel</th>
+          <th>Status</th>
+          <th>Scheduled</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for action in actions %}
+          <tr>
+            <td>{{ action['company_name'] }}</td>
+            <td>{{ action['step_name'] }}</td>
+            <td><span class="tag">{{ action['channel'] }}</span></td>
+            <td><span class="tag muted">{{ action['status'] }}</span></td>
+            <td>{{ action['scheduled_for'] }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5">No outreach actions planned yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
