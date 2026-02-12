@@ -9,6 +9,17 @@
   <div class="db-pill">DB: <code>{{ db_path }}</code></div>
 </header>
 
+<section class="panel reveal quick-guide">
+  <div class="panel-head">
+    <h3>Quick Start</h3>
+    <p>Discover zero usually means duplicate domains, not failure.</p>
+  </div>
+  <p class="helper-text">
+    1) Run Discover with starter queries. 2) If you keep getting 0 new, your DB already has those domains.
+    3) Use <strong>Clear All Lead Data</strong> and run again.
+  </p>
+</section>
+
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
     <section class="alerts reveal">
@@ -53,12 +64,12 @@
 
       <label>
         <span>Queries (one per line)</span>
-        <textarea name="queries" rows="5" placeholder="CNC machine shop california&#10;precision machining ohio"></textarea>
+        <textarea name="queries" rows="5">{{ starter_discovery_queries }}</textarea>
       </label>
 
       <label>
         <span>Or query file path</span>
-        <input type="text" name="queries_file" value="{{ db_path.rsplit('/', 2)[0] }}/queries_manufacturing.txt">
+        <input type="text" name="queries_file" value="{{ default_queries_file }}">
       </label>
 
       <label>
@@ -119,11 +130,13 @@
 
       <form method="post" action="{{ url_for('run_action') }}" class="inline-form compact">
         <input type="hidden" name="action" value="discover">
-        <textarea name="queries" rows="3" placeholder="Optional custom queries"></textarea>
+        <textarea name="queries" rows="4">{{ starter_discovery_queries }}</textarea>
+        <input type="text" name="queries_file" value="{{ default_queries_file }}" placeholder="Query file path">
         <input type="text" name="states" value="california, texas, ohio" placeholder="States">
         <input type="number" name="max_results" value="15" min="1" max="100" placeholder="Max results">
         <button type="submit" class="btn ghost">Discover</button>
       </form>
+      <p class="helper-text">Discover reports: new inserted, already in DB, and total domains found.</p>
 
       <form method="post" action="{{ url_for('run_action') }}" class="inline-form compact">
         <input type="hidden" name="action" value="enrich">
@@ -153,6 +166,12 @@
           <span>Live send</span>
         </label>
         <button type="submit" class="btn ghost">Send</button>
+      </form>
+
+      <form method="post" action="{{ url_for('run_action') }}" class="inline-form compact danger-zone">
+        <input type="hidden" name="action" value="clear_data">
+        <input type="text" name="confirm_clear" placeholder="Type DELETE to clear all data">
+        <button type="submit" class="btn danger">Clear All Lead Data</button>
       </form>
 
       <a href="{{ url_for('export_csv') }}" class="btn secondary">Download CSV</a>

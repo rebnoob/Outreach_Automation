@@ -12,21 +12,39 @@ from flask import Flask, Response, flash, redirect, render_template, request, ur
 from .config import load_config
 from .crawler import enrich_company
 from .database import (
+    clear_lead_data,
     export_leads,
     get_companies_for_enrichment,
     get_connection,
     get_scored_companies,
     init_db,
 )
-from .discovery import default_manufacturing_queries, discover_companies, load_queries_from_file
+from .discovery import (
+    default_manufacturing_queries,
+    discover_companies_with_stats,
+    load_queries_from_file,
+)
 from .outreach import DEFAULT_VALUE_PROP, plan_outreach
 from .scoring import score_companies
 from .sender import send_due_emails
+
+STARTER_DISCOVERY_QUERIES = (
+    "CNC machine shop california\n"
+    "precision machining ohio\n"
+    "high mix low volume manufacturing texas\n"
+    "contract manufacturing assembly illinois\n"
+    "injection molding manufacturer michigan"
+)
 
 
 def _default_db_path() -> str:
     root = Path(__file__).resolve().parent
     return str(root / "data" / "leads.db")
+
+
+def _default_queries_file_path() -> str:
+    root = Path(__file__).resolve().parent
+    return str(root / "queries_manufacturing.txt")
 
 
 def _get_db_path() -> str:
@@ -55,6 +73,39 @@ def _split_lines(raw_text: str) -> List[str]:
 
 def _split_csv_values(raw_text: str) -> List[str]:
     return [part.strip() for part in (raw_text or "").split(",") if part.strip()]
+
+
+def _resolve_queries(query_text: str, queries_file: str, states_raw: str) -> List[str]:
+    if _split_lines(query_text):
+        return _split_lines(query_text)
+    if queries_file:
+        candidate = Path(queries_file)
+        if not candidate.exists():
+            raise FileNotFoundError(f"Query file does not exist: {queries_file}")
+        return load_queries_from_file(str(candidate))
+    states = _split_csv_values(states_raw)
+    return default_manufacturing_queries(states=states or None)
+
+
+def _flash_discovery_summary(stats: Dict[str, int], context_label: str) -> None:
+    summary = (
+        f"{context_label}: {stats['inserted']} new, {stats['existing']} already in DB, "
+        f"{stats['unique_domains_found']} unique domains from {stats['results_found']} hits "
+        f"across {stats['queries']} queries."
+    )
+    flash(summary, "success")
+
+    if stats["results_found"] == 0:
+        flash(
+            "No search results were parsed. Try different queries or the default starter queries.",
+            "error",
+        )
+    elif stats["inserted"] == 0 and stats["existing"] > 0:
+        flash(
+            "Zero new records usually means the domains are already saved. "
+            "Use 'Clear All Lead Data' to restart from a clean database.",
+            "error",
+        )
 
 
 def _fetch_dashboard_data(
@@ -194,6 +245,8 @@ def create_app() -> Flask:
             db_path=db_path,
             today=date.today().isoformat(),
             default_value_prop=DEFAULT_VALUE_PROP,
+            default_queries_file=_default_queries_file_path(),
+            starter_discovery_queries=STARTER_DISCOVERY_QUERIES,
             search=search,
             status_filter=status_filter,
             channel_filter=channel_filter,
@@ -217,6 +270,16 @@ def create_app() -> Flask:
                 init_db(db_path)
                 flash(f"Database initialized at {db_path}", "success")
 
+            elif action == "clear_data":
+                confirmation = request.form.get("confirm_clear", "").strip()
+                if confirmation != "DELETE":
+                    flash("Type DELETE exactly before clearing data.", "error")
+                else:
+                    with get_connection(db_path) as conn:
+                        clear_lead_data(conn)
+                        conn.commit()
+                    flash("Cleared all lead data (companies, contacts, pages, outreach actions).", "success")
+
             elif action == "discover":
                 config = load_config()
                 query_text = request.form.get("queries", "")
@@ -224,17 +287,10 @@ def create_app() -> Flask:
                 states_raw = request.form.get("states", "")
                 max_results = _parse_int(request.form.get("max_results", "20"), 20, 1, 100)
                 segment = request.form.get("segment", "manufacturing").strip() or "manufacturing"
-
-                if _split_lines(query_text):
-                    queries = _split_lines(query_text)
-                elif queries_file:
-                    queries = load_queries_from_file(queries_file)
-                else:
-                    states = _split_csv_values(states_raw)
-                    queries = default_manufacturing_queries(states=states or None)
+                queries = _resolve_queries(query_text, queries_file, states_raw)
 
                 with get_connection(db_path) as conn:
-                    inserted = discover_companies(
+                    stats = discover_companies_with_stats(
                         conn=conn,
                         queries=queries,
                         max_results_per_query=max_results,
@@ -242,7 +298,7 @@ def create_app() -> Flask:
                         config=config,
                     )
                     conn.commit()
-                flash(f"Discovery complete. New companies inserted: {inserted}", "success")
+                _flash_discovery_summary(stats, "Discovery complete")
 
             elif action == "enrich":
                 config = load_config()
@@ -296,17 +352,10 @@ def create_app() -> Flask:
                 plan_limit = _parse_int(request.form.get("plan_limit", "100"), 100, 1, 3000)
                 start_date = request.form.get("start_date", date.today().isoformat())
                 value_prop = request.form.get("value_prop", DEFAULT_VALUE_PROP).strip() or DEFAULT_VALUE_PROP
-
-                if _split_lines(query_text):
-                    queries = _split_lines(query_text)
-                elif queries_file:
-                    queries = load_queries_from_file(queries_file)
-                else:
-                    states = _split_csv_values(states_raw)
-                    queries = default_manufacturing_queries(states=states or None)
+                queries = _resolve_queries(query_text, queries_file, states_raw)
 
                 with get_connection(db_path) as conn:
-                    inserted = discover_companies(
+                    discovery_stats = discover_companies_with_stats(
                         conn=conn,
                         queries=queries,
                         max_results_per_query=max_results,
@@ -335,8 +384,9 @@ def create_app() -> Flask:
                     )
                     conn.commit()
 
+                _flash_discovery_summary(discovery_stats, "Discovery stage")
                 flash(
-                    f"Pipeline complete. Inserted={inserted}, Enriched={enriched}, "
+                    f"Pipeline complete. NewInserted={discovery_stats['inserted']}, Enriched={enriched}, "
                     f"Scored={scored}, PlannedActions={planned}",
                     "success",
                 )

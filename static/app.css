@@ -152,6 +152,10 @@ h1 {
   margin-top: 14px;
 }
 
+.quick-guide {
+  margin-bottom: 14px;
+}
+
 .panel-head {
   display: flex;
   justify-content: space-between;
@@ -226,13 +230,19 @@ textarea:focus {
 
 .inline-form.compact {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
 .inline-form.compact textarea,
 .inline-form.compact input[type="text"] {
   grid-column: 1 / -1;
+}
+
+.helper-text {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .checkbox {
@@ -282,6 +292,17 @@ textarea:focus {
   border-color: var(--line);
   background: rgba(28, 49, 72, 0.8);
   color: var(--ink);
+}
+
+.btn.danger {
+  border-color: rgba(255, 138, 61, 0.45);
+  background: rgba(78, 30, 16, 0.84);
+  color: #ffd8bf;
+}
+
+.danger-zone {
+  border-top: 1px dashed rgba(255, 138, 61, 0.32);
+  padding-top: 8px;
 }
 
 .filter-row {

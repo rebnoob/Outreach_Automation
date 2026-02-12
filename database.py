@@ -409,3 +409,11 @@ def export_leads(conn: sqlite3.Connection) -> Iterable[sqlite3.Row]:
         ORDER BY outreach_score DESC, fit_score DESC, domain ASC
         """
     )
+
+
+def clear_lead_data(conn: sqlite3.Connection) -> None:
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("DELETE FROM outreach_actions")
+    conn.execute("DELETE FROM pages")
+    conn.execute("DELETE FROM contacts")
+    conn.execute("DELETE FROM companies")
